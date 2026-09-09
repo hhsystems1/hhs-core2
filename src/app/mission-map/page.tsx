@@ -74,15 +74,15 @@ const MissionNodeComponent = ({ data }: { data: MissionNode }) => {
       'px-4 py-3 rounded-xl border-2 shadow-sm min-w-[150px] transition-all hover:shadow-md',
       categoryColors[data.type]
     )}>
-      <Handle type=\"target\" position={Position.Top} className=\"w-2 h-2 !bg-slate-400\" />
+      <Handle type="target" position={Position.Top} className="w-2 h-2 !bg-slate-400" />
       
-      <div className=\"flex items-center gap-3\">
-        <div className=\"p-2 rounded-lg bg-white/50 shadow-sm\">
-          <Icon className=\"w-4 h-4\" />
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-white/50 shadow-sm">
+          <Icon className="w-4 h-4" />
         </div>
-        <div className=\"flex-1 overflow-hidden\">
-          <p className=\"text-xs font-bold truncate\">{data.label}</p>
-          <p className=\"text-[10px] opacity-70 uppercase tracking-wider\">{data.type}</p>
+        <div className="flex-1 overflow-hidden">
+          <p className="text-xs font-bold truncate">{data.label}</p>
+          <p className="text-[10px] opacity-70 uppercase tracking-wider">{data.type}</p>
         </div>
         <div className={cn(
           'w-2 h-2 rounded-full',
@@ -90,7 +90,7 @@ const MissionNodeComponent = ({ data }: { data: MissionNode }) => {
         )} />
       </div>
 
-      <Handle type=\"source\" position={Position.Bottom} className=\"w-2 h-2 !bg-slate-400\" />
+      <Handle type="source" position={Position.Bottom} className="w-2 h-2 !bg-slate-400" />
     </div>
   );
 };
@@ -130,8 +130,8 @@ export default function MissionMapPage() {
   [storeNodes, selectedNodeId]);
 
   return (
-    <div className=\"flex h-full w-full gap-6 overflow-hidden relative\">
-      <div className=\"flex-1 h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden relative\">
+    <div className="flex h-full w-full gap-6 overflow-hidden relative">
+      <div className="flex-1 h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden relative">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -140,7 +140,7 @@ export default function MissionMapPage() {
           onPaneClick={() => setSelectedNode(null)}
           fitView
         >
-          <Background color=\"#e2e8f0\" gap={20} />
+          <Background color="#e2e8f0" gap={20} />
           <Controls />
           <MiniMap 
             nodeColor={(n) => {
@@ -156,53 +156,53 @@ export default function MissionMapPage() {
 
       {/* Inspector Panel */}
       {selectedNode && (
-        <div className=\"w-80 bg-white rounded-3xl border border-slate-200 shadow-xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-300\">
-          <div className=\"p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50\">
-            <h2 className=\"font-bold text-slate-900 flex items-center gap-2\">
-              <Info className=\"w-4 h-4 text-blue-600\" />
+        <div className="w-80 bg-white rounded-3xl border border-slate-200 shadow-xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <h2 className="font-bold text-slate-900 flex items-center gap-2">
+              <Info className="w-4 h-4 text-blue-600" />
               Node Inspector
             </h2>
             <button 
               onClick={() => setSelectedNode(null)}
-              className=\"p-1 hover:bg-slate-200 rounded-full transition-colors\"
+              className="p-1 hover:bg-slate-200 rounded-full transition-colors"
             >
-              <X className=\"w-4 h-4 text-slate-400\" />
+              <X className="w-4 h-4 text-slate-400" />
             </button>
           </div>
 
-          <div className=\"p-6 flex-1 overflow-auto space-y-6\">
-            <div className=\"space-y-1\">
-              <p className=\"text-xs font-semibold text-slate-400 uppercase tracking-wider\">Entity</p>
-              <div className=\"flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100\">
-                <div className=\"p-2 bg-white rounded-lg shadow-sm\">
-                   <Zap className=\"w-4 h-4 text-blue-600\" />
+          <div className="p-6 flex-1 overflow-auto space-y-6">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Entity</p>
+              <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                <div className="p-2 bg-white rounded-lg shadow-sm">
+                   <Zap className="w-4 h-4 text-blue-600" />
                 </div>
-                <span className=\"font-bold text-slate-800\">{selectedNode.label}</span>
+                <span className="font-bold text-slate-800">{selectedNode.label}</span>
               </div>
             </div>
 
-            <div className=\"grid grid-cols-2 gap-4\">
-              <div className=\"p-3 rounded-2xl bg-slate-50 border border-slate-100\">
-                <p className=\"text-[10px] font-semibold text-slate-400 uppercase\">Type</p>
-                <p className=\"text-sm font-medium text-slate-700 capitalize\">{selectedNode.type}</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase">Type</p>
+                <p className="text-sm font-medium text-slate-700 capitalize">{selectedNode.type}</p>
               </div>
-              <div className=\"p-3 rounded-2xl bg-slate-50 border border-slate-100\">
-                <p className=\"text-[10px] font-semibold text-slate-400 uppercase\">Status</p>
-                <div className=\"flex items-center gap-1.5\">
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase">Status</p>
+                <div className="flex items-center gap-1.5">
                   <div className={cn(
                     'w-2 h-2 rounded-full',
                     selectedNode.status === 'active' ? 'bg-green-500' : 
                     selectedNode.status === 'pending' ? 'bg-yellow-500' : 
                     selectedNode.status === 'completed' ? 'bg-blue-500' : 'bg-red-500'
                   )} />
-                  <p className=\"text-sm font-medium text-slate-700 capitalize\">{selectedNode.status}</p>
+                  <p className="text-sm font-medium text-slate-700 capitalize">{selectedNode.status}</p>
                 </div>
               </div>
             </div>
 
-            <div className=\"space-y-3\">
-              <p className=\"text-xs font-semibold text-slate-400 uppercase tracking-wider\">Details</p>
-              <div className=\"p-4 rounded-2xl bg-slate-50 border border-slate-100 text-sm text-slate-600 leading-relaxed\">
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Details</p>
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-sm text-slate-600 leading-relaxed">
                 {Object.keys(selectedNode.data).length > 0 
                   ? JSON.stringify(selectedNode.data, null, 2)
                   : 'No additional metadata available for this node.'
@@ -210,21 +210,21 @@ export default function MissionMapPage() {
               </div>
             </div>
 
-            <div className=\"pt-4 space-y-2\">
-              <button className=\"w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 shadow-sm\">
-                <Settings className=\"w-4 h-4\" />
+            <div className="pt-4 space-y-2">
+              <button className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 shadow-sm">
+                <Settings className="w-4 h-4" />
                 Configure Node
               </button>
-              <button className=\"w-full py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2\">
-                <Target className=\"w-4 h-4\" />
+              <button className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                <Target className="w-4 h-4" />
                 View Dependencies
               </button>
             </div>
           </div>
 
-          <div className=\"p-6 border-t border-slate-100 bg-slate-50/30\">
-            <div className=\"flex items-center gap-3 text-xs text-slate-400\">
-              <Clock className=\"w-3 h-3\" />
+          <div className="p-6 border-t border-slate-100 bg-slate-50/30">
+            <div className="flex items-center gap-3 text-xs text-slate-400">
+              <Clock className="w-3 h-3" />
               <span>Last updated 2 hours ago</span>
             </div>
           </div>

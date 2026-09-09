@@ -3,6 +3,7 @@ import { create } from 'zustand';
 export type NodeCategory = 'company' | 'contact' | 'lead' | 'project' | 'task' | 'agent' | 'campaign' | 'automation' | 'knowledge' | 'system';
 
 export interface MissionNode {
+  [key: string]: any;
   id: string;
   type: NodeCategory;
   label: string;

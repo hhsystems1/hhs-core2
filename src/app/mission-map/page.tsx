@@ -231,3 +231,6 @@ export default function MissionMapPage() {
         </div>
       )}
     </div>
+
+  );
+}

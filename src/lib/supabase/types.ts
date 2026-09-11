@@ -79,6 +79,17 @@ export interface MissionEdgeRow {
   created_at: string;
 }
 
+export interface KnowledgeDocRow {
+  id: string;
+  org_id: string;
+  title: string;
+  category: 'Standard Operating Procedures' | 'Training & Onboarding' | 'Client Wisdom' | 'Internal Wiki';
+  summary: string | null;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -90,6 +101,7 @@ export interface Database {
       tasks: { Row: TaskRow; Insert: Partial<TaskRow>; Update: Partial<TaskRow> };
       mission_nodes: { Row: MissionNodeRow; Insert: Partial<MissionNodeRow>; Update: Partial<MissionNodeRow> };
       mission_edges: { Row: MissionEdgeRow; Insert: Partial<MissionEdgeRow>; Update: Partial<MissionEdgeRow> };
+      knowledge_docs: { Row: KnowledgeDocRow; Insert: Partial<KnowledgeDocRow>; Update: Partial<KnowledgeDocRow> };
     };
   };
 }

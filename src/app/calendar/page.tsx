@@ -1,12 +1,16 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, X, CheckCircle2, Circle } from 'lucide-react';
-import { useTaskStore, type Task } from '@/lib/store/taskStore';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, X, CheckCircle2, Circle, Plus } from 'lucide-react';
+import { useTaskStore, type Task, type TaskInput } from '@/lib/store/taskStore';
 import { useOrgStore } from '@/lib/store/orgStore';
+import Modal from '@/components/ui/Modal';
 import { cn } from '@/lib/utils';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const inputClass =
+  'w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm';
 
 function startOfDay(date: string) {
   const d = new Date(date + 'T00:00:00');
@@ -17,6 +21,7 @@ function startOfDay(date: string) {
 export default function CalendarPage() {
   const tasks = useTaskStore((s) => s.tasks);
   const updateTask = useTaskStore((s) => s.updateTask);
+  const addTask = useTaskStore((s) => s.addTask);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
 
   const todayKey = new Date().toISOString().slice(0, 10);
@@ -25,6 +30,7 @@ export default function CalendarPage() {
     return { year: now.getFullYear(), month: now.getMonth() };
   });
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const tasksByDate = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -102,6 +108,11 @@ export default function CalendarPage() {
   const toggleTask = (task: Task) => {
     const next = task.status === 'completed' ? 'pending' : 'completed';
     updateTask(activeOrgId ?? '', task.id, { status: next });
+  };
+
+  const handleAddTask = async (input: TaskInput) => {
+    await addTask(activeOrgId ?? '', input);
+    setAddOpen(false);
   };
 
   return (
@@ -215,9 +226,18 @@ export default function CalendarPage() {
               <CalendarIcon className="w-4 h-4 text-blue-600" />
               {startOfDay(selectedDay)?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </h3>
-            <button onClick={() => setSelectedDay(null)} className="p-1.5 hover:bg-slate-100 rounded-full" aria-label="Close">
-              <X className="w-4 h-4 text-slate-400" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAddOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs font-medium"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add task
+              </button>
+              <button onClick={() => setSelectedDay(null)} className="p-1.5 hover:bg-slate-100 rounded-full" aria-label="Close">
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
           </div>
           <div className="p-4 sm:p-6">
             {selectedTasks.length === 0 ? (
@@ -245,6 +265,89 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      <CalendarTaskModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        date={selectedDay ?? todayKey}
+        onSubmit={handleAddTask}
+      />
     </div>
+  );
+}
+
+function CalendarTaskModal({
+  open,
+  onClose,
+  date,
+  onSubmit,
+}: {
+  open: boolean;
+  onClose: () => void;
+  date: string;
+  onSubmit: (input: TaskInput) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<Task['priority']>('medium');
+  const [assignee, setAssignee] = useState('Admin');
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      setError('Title is required.');
+      return;
+    }
+    onSubmit({
+      title: title.trim(),
+      description: description.trim(),
+      priority,
+      status: 'pending',
+      dueDate: date,
+      assignee: assignee.trim() || 'Admin',
+    });
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Add calendar task">
+      <form onSubmit={submit} className="space-y-4">
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Title *</label>
+          <input className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Description</label>
+          <textarea className={cn(inputClass, 'resize-none')} rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Due date</label>
+            <input className={inputClass} value={date} readOnly />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Priority</label>
+            <select className={inputClass} value={priority} onChange={(e) => setPriority(e.target.value as Task['priority'])}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Assignee</label>
+          <input className={inputClass} value={assignee} onChange={(e) => setAssignee(e.target.value)} />
+        </div>
+
+        {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>}
+
+        <button
+          type="submit"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+        >
+          Add task
+        </button>
+      </form>
+    </Modal>
   );
 }

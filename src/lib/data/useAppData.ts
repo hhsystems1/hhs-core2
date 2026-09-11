@@ -6,6 +6,7 @@ import { useOrgStore } from '@/lib/store/orgStore';
 import { useCrmStore } from '@/lib/store/crmStore';
 import { useTaskStore } from '@/lib/store/taskStore';
 import { useMissionStore } from '@/lib/store/missionStore';
+import { useKnowledgeStore } from '@/lib/store/knowledgeStore';
 
 export function useAppData() {
   const [authUserId, setAuthUserId] = useState<string | null>(null);
@@ -46,15 +47,18 @@ export function useAppData() {
     useCrmStore.getState().load(activeOrgId);
     useTaskStore.getState().load(activeOrgId);
     useMissionStore.getState().load(activeOrgId);
+    useKnowledgeStore.getState().load(activeOrgId);
 
     const unsubCrm = useCrmStore.getState().subscribe(activeOrgId);
     const unsubTasks = useTaskStore.getState().subscribe(activeOrgId);
     const unsubMission = useMissionStore.getState().subscribe(activeOrgId);
+    const unsubKnowledge = useKnowledgeStore.getState().subscribe(activeOrgId);
 
     return () => {
       unsubCrm();
       unsubTasks();
       unsubMission();
+      unsubKnowledge();
     };
   }, [activeOrgId]);
 

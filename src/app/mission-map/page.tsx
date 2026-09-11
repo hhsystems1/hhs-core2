@@ -8,9 +8,6 @@ import {
   MiniMap,
   Handle,
   Position,
-  applyNodeChanges,
-  type Node,
-  type NodeChange,
   type OnNodeDrag,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -123,29 +120,24 @@ export default function MissionMapPage() {
   const deleteEdge = useMissionStore((s) => s.deleteEdge);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
 
-  const [rfNodes, setRfNodes] = useState<Node[]>(() =>
-    nodes.map((node) => ({
-      id: node.id,
-      position: node.position,
-      data: node,
-      type: 'missionNode',
-    }))
-  );
   const [addOpen, setAddOpen] = useState(false);
-  const [connectMode, setConnectMode] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
-  const [prevNodes, setPrevNodes] = useState<MissionNode[]>(nodes);
-  if (prevNodes !== nodes) {
-    setPrevNodes(nodes);
-    setRfNodes(
+  const rfNodes = useMemo(
+    () =>
       nodes.map((node) => ({
         id: node.id,
         position: node.position,
         data: node,
         type: 'missionNode',
-      }))
-    );
-  }
+      })),
+    [nodes]
+  );
+
+  const flowKey = useMemo(
+    () => nodes.map((node) => `${node.id}:${node.label}:${node.type}:${node.status}:${node.position.x}:${node.position.y}`).join('|'),
+    [nodes]
+  );
 
   const rfEdges = useMemo(
     () =>
@@ -162,10 +154,6 @@ export default function MissionMapPage() {
   );
 
   const nodeTypes = useMemo(() => ({ missionNode: MissionNodeCard }), []);
-
-  const onNodesChange = useCallback((changes: NodeChange[]) => {
-    setRfNodes((nds) => applyNodeChanges(changes, nds));
-  }, []);
 
   const onNodeDragStop: OnNodeDrag = useCallback(
     (_e, node) => {
@@ -199,21 +187,18 @@ export default function MissionMapPage() {
     <div className="h-full w-full flex flex-col md:flex-row gap-0 md:gap-6 relative">
       <div className="flex-1 bg-white rounded-none md:rounded-3xl border-0 md:border border-slate-200 shadow-sm overflow-hidden relative">
         <ReactFlow
-          nodes={rfNodes}
+          key={flowKey}
+          defaultNodes={rfNodes}
           edges={rfEdges}
           nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
           onNodeClick={(_, node) => setSelectedNode(node.id)}
           onPaneClick={() => {
             setSelectedNode(null);
-            setConnectMode(false);
           }}
           onNodeDragStop={onNodeDragStop}
           onEdgeClick={(_, edge) => {
-            if (connectMode) {
-              if (activeOrgId) deleteEdge(activeOrgId, edge.id);
-              else deleteEdge('', edge.id);
-            }
+            if (activeOrgId) deleteEdge(activeOrgId, edge.id);
+            else deleteEdge('', edge.id);
           }}
           fitView
           minZoom={0.2}
@@ -248,9 +233,11 @@ export default function MissionMapPage() {
       {selectedNode && (
         <aside className="hidden md:flex w-80 shrink-0 bg-white rounded-3xl border border-slate-200 shadow-xl flex-col overflow-hidden">
           <MissionInspector
+            key={selectedNode.id}
             node={selectedNode}
             onClose={() => setSelectedNode(null)}
             cycleStatus={cycleStatus}
+            onConfigure={() => setEditOpen(true)}
             onDelete={handleDeleteNode}
           />
         </aside>
@@ -269,9 +256,11 @@ export default function MissionMapPage() {
             </div>
             <div className="flex-1 overflow-y-auto">
               <MissionInspector
+                key={selectedNode.id}
                 node={selectedNode}
                 onClose={() => setSelectedNode(null)}
                 cycleStatus={cycleStatus}
+                onConfigure={() => setEditOpen(true)}
                 onDelete={handleDeleteNode}
               />
             </div>
@@ -280,6 +269,7 @@ export default function MissionMapPage() {
       )}
 
       <AddNodeModal open={addOpen} onClose={() => setAddOpen(false)} onAdd={handleAddNode} />
+      <EditNodeModal open={editOpen} onClose={() => setEditOpen(false)} node={selectedNode} />
     </div>
   );
 }
@@ -288,27 +278,37 @@ function MissionInspector({
   node,
   onClose,
   cycleStatus,
+  onConfigure,
   onDelete,
 }: {
   node: MissionNode;
   onClose: () => void;
   cycleStatus: () => void;
+  onConfigure: () => void;
   onDelete: () => void;
 }) {
   const nodes = useMissionStore((s) => s.nodes);
+  const edges = useMissionStore((s) => s.edges);
   const addEdge = useMissionStore((s) => s.addEdge);
+  const deleteEdge = useMissionStore((s) => s.deleteEdge);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
   const [source, setSource] = useState(node.id);
   const [target, setTarget] = useState('');
   const [relationship, setRelationship] = useState('connects');
 
   const others = nodes.filter((n) => n.id !== node.id);
+  const nodeEdges = edges.filter((e) => e.source === node.id || e.target === node.id);
 
   const handleConnect = async () => {
     if (!target || source === target) return;
     if (activeOrgId) await addEdge(activeOrgId, { source, target, relationship });
     else await addEdge('', { source, target, relationship });
     setTarget('');
+  };
+
+  const handleDeleteEdge = async (edgeId: string) => {
+    if (activeOrgId) await deleteEdge(activeOrgId, edgeId);
+    else await deleteEdge('', edgeId);
   };
 
   const Icon = categoryIcons[node.type] ?? Info;
@@ -401,8 +401,44 @@ function MissionInspector({
           </button>
         </div>
 
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Connections</p>
+          {nodeEdges.length === 0 ? (
+            <p className="text-xs text-slate-400 italic rounded-2xl bg-slate-50 border border-slate-100 p-3">
+              This node has no connections yet.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {nodeEdges.map((edge) => {
+                const sourceNode = nodes.find((n) => n.id === edge.source);
+                const targetNode = nodes.find((n) => n.id === edge.target);
+                return (
+                  <div key={edge.id} className="flex items-center gap-2 rounded-2xl bg-slate-50 border border-slate-100 p-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-slate-700 truncate">
+                        {sourceNode?.label ?? 'Unknown'} -&gt; {targetNode?.label ?? 'Unknown'}
+                      </p>
+                      <p className="text-[10px] text-slate-400">{edge.relationship}</p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteEdge(edge.id)}
+                      className="p-1.5 rounded-lg text-red-500 hover:bg-red-50"
+                      aria-label="Delete connection"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <div className="pt-2 space-y-2">
-          <button className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2">
+          <button
+            onClick={onConfigure}
+            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+          >
             <Palette className="w-4 h-4" />
             Configure Node
           </button>
@@ -423,6 +459,111 @@ function MissionInspector({
         </div>
       </div>
     </>
+  );
+}
+
+function EditNodeModal({
+  open,
+  onClose,
+  node,
+}: {
+  open: boolean;
+  onClose: () => void;
+  node: MissionNode | null;
+}) {
+  const activeOrgId = useOrgStore((s) => s.activeOrgId);
+  const updateNode = useMissionStore((s) => s.updateNode);
+
+  if (!node) return null;
+
+  const handleSave = async (updates: Pick<MissionNode, 'label' | 'type' | 'status' | 'data'>) => {
+    if (activeOrgId) await updateNode(activeOrgId, node.id, updates);
+    else await updateNode('', node.id, updates);
+    onClose();
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Configure mission node">
+      <EditNodeFields key={node.id} node={node} onSave={handleSave} />
+    </Modal>
+  );
+}
+
+function EditNodeFields({
+  node,
+  onSave,
+}: {
+  node: MissionNode;
+  onSave: (updates: Pick<MissionNode, 'label' | 'type' | 'status' | 'data'>) => void;
+}) {
+  const [label, setLabel] = useState(node.label);
+  const [type, setType] = useState<NodeCategory>(node.type);
+  const [status, setStatus] = useState<MissionNode['status']>(node.status);
+  const [dataText, setDataText] = useState(JSON.stringify(node.data ?? {}, null, 2));
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!label.trim()) {
+      setError('Label is required.');
+      return;
+    }
+    let data: Record<string, unknown>;
+    try {
+      data = JSON.parse(dataText || '{}') as Record<string, unknown>;
+    } catch {
+      setError('Metadata must be valid JSON.');
+      return;
+    }
+    onSave({ label: label.trim(), type, status, data });
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div>
+        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Label *</label>
+        <input className={inputClass} value={label} onChange={(e) => setLabel(e.target.value)} autoFocus />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Category</label>
+          <select className={inputClass} value={type} onChange={(e) => setType(e.target.value as NodeCategory)}>
+            {CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Status</label>
+          <select className={inputClass} value={status} onChange={(e) => setStatus(e.target.value as MissionNode['status'])}>
+            {STATUSES.map((s) => (
+              <option key={s} value={s} className="capitalize">
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Metadata JSON</label>
+        <textarea
+          className={cn(inputClass, 'font-mono text-xs min-h-32 resize-y')}
+          value={dataText}
+          onChange={(e) => setDataText(e.target.value)}
+        />
+      </div>
+
+      {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>}
+
+      <button
+        type="submit"
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+      >
+        Save node
+      </button>
+    </form>
   );
 }
 

@@ -113,6 +113,24 @@ create index if not exists mission_edges_source_idx on public.mission_edges (sou
 create index if not exists mission_edges_target_idx on public.mission_edges (target);
 
 -- ----------------------------------------------------------------------------
+-- Knowledge documents
+-- ----------------------------------------------------------------------------
+create table if not exists public.knowledge_docs (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.orgs (id) on delete cascade,
+  title text not null,
+  category text not null default 'Internal Wiki' check (
+    category in ('Standard Operating Procedures', 'Training & Onboarding', 'Client Wisdom', 'Internal Wiki')
+  ),
+  summary text,
+  content text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists knowledge_docs_org_idx on public.knowledge_docs (org_id);
+
+-- ----------------------------------------------------------------------------
 -- Membership helper
 -- ----------------------------------------------------------------------------
 create or replace function public.user_in_org(org_id uuid)
@@ -176,6 +194,7 @@ alter table public.projects enable row level security;
 alter table public.tasks enable row level security;
 alter table public.mission_nodes enable row level security;
 alter table public.mission_edges enable row level security;
+alter table public.knowledge_docs enable row level security;
 
 -- profiles: view own or those sharing a workspace
 create policy "profiles_select" on public.profiles
@@ -249,6 +268,10 @@ create policy "mission_nodes_all" on public.mission_nodes
 
 -- mission edges
 create policy "mission_edges_all" on public.mission_edges
+  for all using (user_in_org(org_id)) with check (user_in_org(org_id));
+
+-- knowledge documents
+create policy "knowledge_docs_all" on public.knowledge_docs
   for all using (user_in_org(org_id)) with check (user_in_org(org_id));
 
 -- ----------------------------------------------------------------------------

@@ -127,15 +127,18 @@ export const useCrmStore = create<CrmStore>((set, get) => ({
     }));
     if (!isSupabaseConfigured) return;
     const supabase = createClient();
+    const patch: Partial<ContactRow> = {};
+    if ('name' in updates) patch.name = updates.name;
+    if ('email' in updates) patch.email = updates.email || null;
+    if ('phone' in updates) patch.phone = updates.phone || null;
+    if ('company' in updates) patch.company = updates.company || null;
+    if ('status' in updates) patch.status = updates.status;
+    if ('stage' in updates) patch.stage = updates.stage;
+    if ('lastContacted' in updates) patch.last_contacted = updates.lastContacted || null;
+
     const { error } = await supabase
       .from('contacts')
-      .update({
-        ...updates,
-        email: updates.email || null,
-        phone: updates.phone || null,
-        company: updates.company || null,
-        last_contacted: updates.lastContacted || null,
-      })
+      .update(patch)
       .eq('org_id', orgId)
       .eq('id', id);
     if (error) console.error('updateContact failed', error);

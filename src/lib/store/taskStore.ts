@@ -143,15 +143,18 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     }));
     if (!isSupabaseConfigured) return;
     const supabase = createClient();
+    const patch: Partial<TaskRow> = {};
+    if ('title' in updates) patch.title = updates.title;
+    if ('description' in updates) patch.description = updates.description || null;
+    if ('priority' in updates) patch.priority = updates.priority;
+    if ('status' in updates) patch.status = updates.status;
+    if ('dueDate' in updates) patch.due_date = updates.dueDate || null;
+    if ('assignee' in updates) patch.assignee = updates.assignee || null;
+    if ('projectId' in updates) patch.project_id = updates.projectId ?? null;
+
     const { error } = await supabase
       .from('tasks')
-      .update({
-        ...updates,
-        project_id: updates.projectId ?? null,
-        due_date: updates.dueDate || null,
-        description: updates.description ?? null,
-        assignee: updates.assignee ?? null,
-      })
+      .update(patch)
       .eq('org_id', orgId)
       .eq('id', id);
     if (error) console.error('updateTask failed', error);

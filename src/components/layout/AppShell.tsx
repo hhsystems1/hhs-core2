@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -215,9 +216,12 @@ function ProfileMenu({ panelClassName }: { panelClassName?: string }) {
       }}
     >
       <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 shrink-0" aria-label="Account menu">
-        <img
+        <Image
           src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`}
           alt="Profile"
+          width={36}
+          height={36}
+          unoptimized
           className="w-9 h-9 rounded-full border border-slate-300 bg-white"
         />
         <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform', open && 'rotate-180')} />

@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Settings as SettingsIcon, Building2, Users, Mail, Info, Shield } from 'lucide-react';
+import { Settings as SettingsIcon, Building2, Users, Mail, Info, Shield, Bot, KeyRound } from 'lucide-react';
 import { useOrgStore } from '@/lib/store/orgStore';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
+import type { AgentProviderConfigRow } from '@/lib/supabase/types';
 
 interface Member {
   user_id: string;
@@ -12,6 +13,18 @@ interface Member {
   email: string;
   full_name: string;
 }
+
+type AgentProvider = AgentProviderConfigRow['provider'];
+
+const PROVIDER_DEFAULTS: Record<AgentProvider, { name: string; baseUrl: string; model: string; needsKey: boolean }> = {
+  openai: { name: 'ChatGPT / OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', needsKey: true },
+  openrouter: { name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini', needsKey: true },
+  'ollama-local': { name: 'Ollama Local', baseUrl: 'http://localhost:11434', model: 'llama3.1', needsKey: false },
+  'ollama-cloud': { name: 'Ollama Cloud', baseUrl: 'https://ollama.com/api', model: 'gpt-oss:120b-cloud', needsKey: true },
+};
+
+const DEFAULT_SYSTEM_PROMPT =
+  'You are the HHS Core 2 mission control agent. Be concise, practical, and execute the workflow step you are assigned.';
 
 const inputClass =
   'w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm';
@@ -57,6 +70,8 @@ export default function SettingsPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteMsg, setInviteMsg] = useState<string | null>(null);
+  const [agentConfig, setAgentConfig] = useState<AgentProviderConfigRow | null>(null);
+  const [agentMsg, setAgentMsg] = useState<string | null>(null);
 
   const activeOrg = React.useMemo(() => orgs.find((o) => o.id === activeOrgId) ?? null, [orgs, activeOrgId]);
 
@@ -76,6 +91,25 @@ export default function SettingsPage() {
           return { user_id: m.user_id, role: m.role, email: p.email, full_name: p.full_name ?? '' };
         })
       );
+    }
+    run();
+    return () => {
+      active = false;
+    };
+  }, [activeOrgId]);
+
+  useEffect(() => {
+    let active = true;
+    async function run() {
+      if (!activeOrgId || !isSupabaseConfigured) return;
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('agent_provider_configs')
+        .select('*')
+        .eq('org_id', activeOrgId)
+        .eq('is_default', true)
+        .maybeSingle();
+      if (active) setAgentConfig(data ?? null);
     }
     run();
     return () => {
@@ -154,6 +188,15 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
+
+      <AgentProviderSettings
+        key={agentConfig?.id ?? 'new-agent-provider'}
+        activeOrgId={activeOrgId}
+        config={agentConfig}
+        message={agentMsg}
+        onMessage={setAgentMsg}
+        onSaved={setAgentConfig}
+      />
 
       <section className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-sm overflow-hidden">
         <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center gap-2">
@@ -240,12 +283,138 @@ export default function SettingsPage() {
               <Shield className="w-3.5 h-3.5" /> Storage
             </span>
             <span className={cn('font-medium', isSupabaseConfigured ? 'text-green-600' : 'text-amber-600')}>
-              {isSupabaseConfigured ? 'Supabase' : 'Demo mode'}
+              {isSupabaseConfigured ? 'Supabase' : 'Setup required'}
             </span>
           </div>
         </div>
       </section>
     </div>
+  );
+}
+
+function AgentProviderSettings({
+  activeOrgId,
+  config,
+  message,
+  onMessage,
+  onSaved,
+}: {
+  activeOrgId: string | null;
+  config: AgentProviderConfigRow | null;
+  message: string | null;
+  onMessage: (message: string | null) => void;
+  onSaved: (config: AgentProviderConfigRow | null) => void;
+}) {
+  const [provider, setProvider] = useState<AgentProvider>(config?.provider ?? 'openai');
+  const [model, setModel] = useState(config?.model ?? PROVIDER_DEFAULTS.openai.model);
+  const [baseUrl, setBaseUrl] = useState(config?.base_url ?? PROVIDER_DEFAULTS.openai.baseUrl);
+  const [apiKey, setApiKey] = useState(config?.api_key ?? '');
+  const [systemPrompt, setSystemPrompt] = useState(config?.system_prompt ?? DEFAULT_SYSTEM_PROMPT);
+  const [busy, setBusy] = useState(false);
+
+  const applyProviderDefaults = (nextProvider: AgentProvider) => {
+    const defaults = PROVIDER_DEFAULTS[nextProvider];
+    setProvider(nextProvider);
+    setBaseUrl(defaults.baseUrl);
+    setModel(defaults.model);
+    if (!defaults.needsKey) setApiKey('');
+    onMessage(null);
+  };
+
+  const save = async () => {
+    onMessage(null);
+    if (!activeOrgId || !isSupabaseConfigured) {
+      onMessage('Configure Supabase and sign in before saving agent providers.');
+      return;
+    }
+
+    const defaults = PROVIDER_DEFAULTS[provider];
+    if (defaults.needsKey && !apiKey.trim()) {
+      onMessage('This provider needs an API key.');
+      return;
+    }
+
+    setBusy(true);
+    const supabase = createClient();
+    const payload = {
+      org_id: activeOrgId,
+      name: defaults.name,
+      provider,
+      base_url: baseUrl.trim() || defaults.baseUrl,
+      model: model.trim() || defaults.model,
+      api_key: defaults.needsKey ? apiKey.trim() : null,
+      system_prompt: systemPrompt.trim() || DEFAULT_SYSTEM_PROMPT,
+      is_default: true,
+    };
+
+    if (config) {
+      const { data, error } = await supabase
+        .from('agent_provider_configs')
+        .update(payload)
+        .eq('org_id', activeOrgId)
+        .eq('id', config.id)
+        .select('*')
+        .single();
+      onMessage(error ? error.message : 'Agent provider saved.');
+      if (data) onSaved(data);
+    } else {
+      const { data, error } = await supabase.from('agent_provider_configs').insert(payload).select('*').single();
+      onMessage(error ? error.message : 'Agent provider saved.');
+      if (data) onSaved(data);
+    }
+
+    setBusy(false);
+  };
+
+  return (
+    <section className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-sm overflow-hidden">
+      <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+        <Bot className="w-4 h-4 text-blue-600" />
+        <h2 className="font-bold text-slate-900 text-sm">Agent Provider</h2>
+      </div>
+      <div className="p-4 sm:p-6 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Provider</label>
+            <select className={inputClass} value={provider} onChange={(e) => applyProviderDefaults(e.target.value as AgentProvider)}>
+              {Object.entries(PROVIDER_DEFAULTS).map(([value, item]) => (
+                <option key={value} value={value}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Model</label>
+            <input className={inputClass} value={model} onChange={(e) => setModel(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Base URL</label>
+          <input className={inputClass} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+        </div>
+        {PROVIDER_DEFAULTS[provider].needsKey && (
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-1.5">
+              <KeyRound className="w-3.5 h-3.5" /> API key
+            </label>
+            <input className={inputClass} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+          </div>
+        )}
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Runner system prompt</label>
+          <textarea className={cn(inputClass, 'min-h-28 resize-y')} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} />
+        </div>
+        {message && <p className="text-xs text-slate-500">{message}</p>}
+        <button
+          onClick={save}
+          disabled={busy}
+          className="w-full sm:w-auto px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white rounded-xl text-sm font-medium transition-colors"
+        >
+          {busy ? 'Saving...' : 'Save agent provider'}
+        </button>
+      </div>
+    </section>
   );
 }
 

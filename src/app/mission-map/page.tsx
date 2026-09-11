@@ -31,9 +31,12 @@ import {
   X,
   BookOpen,
   Plus,
+  Play,
   Trash2,
   Link2,
   Palette,
+  Layers,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -110,10 +113,17 @@ function MissionNodeCard({ data }: { data: MissionNode }) {
 }
 
 export default function MissionMapPage() {
+  const maps = useMissionStore((s) => s.maps);
+  const activeMapId = useMissionStore((s) => s.activeMapId);
   const nodes = useMissionStore((s) => s.nodes);
   const edges = useMissionStore((s) => s.edges);
+  const runs = useMissionStore((s) => s.runs);
+  const loading = useMissionStore((s) => s.loading);
   const selectedNodeId = useMissionStore((s) => s.selectedNodeId);
   const setSelectedNode = useMissionStore((s) => s.setSelectedNode);
+  const setActiveMap = useMissionStore((s) => s.setActiveMap);
+  const createMap = useMissionStore((s) => s.createMap);
+  const runActiveMap = useMissionStore((s) => s.runActiveMap);
   const addNode = useMissionStore((s) => s.addNode);
   const updateNode = useMissionStore((s) => s.updateNode);
   const deleteNode = useMissionStore((s) => s.deleteNode);
@@ -122,6 +132,9 @@ export default function MissionMapPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [runBusy, setRunBusy] = useState(false);
+
+  const activeMap = useMemo(() => maps.find((map) => map.id === activeMapId) ?? null, [activeMapId, maps]);
 
   const rfNodes = useMemo(
     () =>
@@ -183,9 +196,69 @@ export default function MissionMapPage() {
     setSelectedNode(null);
   };
 
+  const handleCreateMap = async () => {
+    if (!activeOrgId) return;
+    const name = window.prompt('Name this mission map');
+    if (!name?.trim()) return;
+    await createMap(activeOrgId, name);
+  };
+
+  const handleRunWorkflow = async () => {
+    if (!activeOrgId || runBusy) return;
+    setRunBusy(true);
+    await runActiveMap(activeOrgId, `Run ${activeMap?.name ?? 'mission map'} and queue available agent/automation nodes.`);
+    setRunBusy(false);
+  };
+
   return (
     <div className="h-full w-full flex flex-col md:flex-row gap-0 md:gap-6 relative">
       <div className="flex-1 bg-white rounded-none md:rounded-3xl border-0 md:border border-slate-200 shadow-sm overflow-hidden relative">
+        <div className="absolute left-3 right-3 top-3 z-20 flex flex-col gap-2 md:left-4 md:right-4 md:flex-row md:items-center md:justify-between pointer-events-none">
+          <div className="pointer-events-auto flex min-w-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur">
+            <Layers className="h-4 w-4 shrink-0 text-blue-600" />
+            <select
+              className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-800 outline-none"
+              value={activeMapId ?? ''}
+              onChange={(event) => {
+                if (activeOrgId && event.target.value) setActiveMap(activeOrgId, event.target.value);
+              }}
+              disabled={!activeOrgId || maps.length === 0}
+            >
+              {maps.map((map) => (
+                <option key={map.id} value={map.id}>
+                  {map.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleCreateMap}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              aria-label="Create mission map"
+              title="Create mission map"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="pointer-events-auto flex items-center gap-2">
+            {runs[0] && (
+              <div className="hidden rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-500 shadow-sm backdrop-blur md:block">
+                Last run: <span className="font-semibold capitalize text-slate-800">{runs[0].status}</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleRunWorkflow}
+              disabled={!activeOrgId || !activeMapId || runBusy}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {runBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              Run workflow
+            </button>
+          </div>
+        </div>
+
         <ReactFlow
           key={flowKey}
           defaultNodes={rfNodes}
@@ -218,6 +291,15 @@ export default function MissionMapPage() {
             />
           </div>
         </ReactFlow>
+
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
+            <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+              Loading map...
+            </div>
+          </div>
+        )}
 
         {/* Floating add button */}
         <button

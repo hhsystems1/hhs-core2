@@ -81,11 +81,28 @@ create table if not exists public.tasks (
 );
 
 -- ----------------------------------------------------------------------------
+-- Mission maps / workflows
+-- ----------------------------------------------------------------------------
+create table if not exists public.mission_maps (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.orgs (id) on delete cascade,
+  name text not null default 'Mission Map',
+  description text,
+  status text not null default 'active' check (status in ('draft', 'active', 'archived')),
+  created_by uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists mission_maps_org_idx on public.mission_maps (org_id);
+
+-- ----------------------------------------------------------------------------
 -- Mission map nodes
 -- ----------------------------------------------------------------------------
 create table if not exists public.mission_nodes (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.orgs (id) on delete cascade,
+  map_id uuid not null references public.mission_maps (id) on delete cascade,
   type text not null default 'task' check (
     type in ('company', 'contact', 'lead', 'project', 'task', 'agent', 'campaign', 'automation', 'knowledge', 'system')
   ),
@@ -103,14 +120,75 @@ create table if not exists public.mission_nodes (
 create table if not exists public.mission_edges (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.orgs (id) on delete cascade,
+  map_id uuid not null references public.mission_maps (id) on delete cascade,
   source uuid not null references public.mission_nodes (id) on delete cascade,
   target uuid not null references public.mission_nodes (id) on delete cascade,
   relationship text not null default 'connects',
   created_at timestamptz not null default now()
 );
 
+create index if not exists mission_nodes_map_idx on public.mission_nodes (map_id);
+create index if not exists mission_edges_map_idx on public.mission_edges (map_id);
 create index if not exists mission_edges_source_idx on public.mission_edges (source);
 create index if not exists mission_edges_target_idx on public.mission_edges (target);
+
+-- ----------------------------------------------------------------------------
+-- Mission run tracking
+-- ----------------------------------------------------------------------------
+create table if not exists public.mission_runs (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.orgs (id) on delete cascade,
+  map_id uuid not null references public.mission_maps (id) on delete cascade,
+  status text not null default 'queued' check (status in ('queued', 'running', 'completed', 'failed', 'cancelled')),
+  trigger text not null default 'manual' check (trigger in ('manual', 'schedule', 'webhook', 'agent')),
+  input jsonb not null default '{}'::jsonb,
+  output jsonb not null default '{}'::jsonb,
+  error text,
+  requested_by uuid references auth.users (id) on delete set null,
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.mission_node_runs (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null references public.mission_runs (id) on delete cascade,
+  org_id uuid not null references public.orgs (id) on delete cascade,
+  map_id uuid not null references public.mission_maps (id) on delete cascade,
+  node_id uuid not null references public.mission_nodes (id) on delete cascade,
+  status text not null default 'queued' check (status in ('queued', 'running', 'completed', 'failed', 'skipped')),
+  input jsonb not null default '{}'::jsonb,
+  output jsonb not null default '{}'::jsonb,
+  error text,
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists mission_runs_map_idx on public.mission_runs (map_id, created_at desc);
+create index if not exists mission_node_runs_run_idx on public.mission_node_runs (run_id);
+
+-- ----------------------------------------------------------------------------
+-- Agent provider configs for server-side runners
+-- ----------------------------------------------------------------------------
+create table if not exists public.agent_provider_configs (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.orgs (id) on delete cascade,
+  name text not null default 'Default Agent Provider',
+  provider text not null check (provider in ('openai', 'openrouter', 'ollama-local', 'ollama-cloud')),
+  base_url text not null,
+  model text not null,
+  api_key text,
+  system_prompt text not null default 'You are the HHS Core 2 mission control agent. Be concise, practical, and execute the workflow step you are assigned.',
+  is_default boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists agent_provider_configs_org_idx on public.agent_provider_configs (org_id);
+create unique index if not exists agent_provider_configs_one_default_idx
+  on public.agent_provider_configs (org_id)
+  where is_default;
 
 -- ----------------------------------------------------------------------------
 -- Knowledge documents
@@ -174,6 +252,9 @@ begin
   insert into public.org_members (org_id, user_id, role)
   values (new_org_id, new.id, 'owner');
 
+  insert into public.mission_maps (org_id, name, description, created_by)
+  values (new_org_id, 'Mission Control', 'Default operational workflow map.', new.id);
+
   return new;
 end;
 $$;
@@ -192,8 +273,12 @@ alter table public.org_members enable row level security;
 alter table public.contacts enable row level security;
 alter table public.projects enable row level security;
 alter table public.tasks enable row level security;
+alter table public.mission_maps enable row level security;
 alter table public.mission_nodes enable row level security;
 alter table public.mission_edges enable row level security;
+alter table public.mission_runs enable row level security;
+alter table public.mission_node_runs enable row level security;
+alter table public.agent_provider_configs enable row level security;
 alter table public.knowledge_docs enable row level security;
 
 -- profiles: view own or those sharing a workspace
@@ -262,12 +347,26 @@ create policy "projects_all" on public.projects
 create policy "tasks_all" on public.tasks
   for all using (user_in_org(org_id)) with check (user_in_org(org_id));
 
+-- mission maps
+create policy "mission_maps_all" on public.mission_maps
+  for all using (user_in_org(org_id)) with check (user_in_org(org_id));
+
 -- mission nodes
 create policy "mission_nodes_all" on public.mission_nodes
   for all using (user_in_org(org_id)) with check (user_in_org(org_id));
 
 -- mission edges
 create policy "mission_edges_all" on public.mission_edges
+  for all using (user_in_org(org_id)) with check (user_in_org(org_id));
+
+-- mission runs
+create policy "mission_runs_all" on public.mission_runs
+  for all using (user_in_org(org_id)) with check (user_in_org(org_id));
+
+create policy "mission_node_runs_all" on public.mission_node_runs
+  for all using (user_in_org(org_id)) with check (user_in_org(org_id));
+
+create policy "agent_provider_configs_all" on public.agent_provider_configs
   for all using (user_in_org(org_id)) with check (user_in_org(org_id));
 
 -- knowledge documents

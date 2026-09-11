@@ -6,9 +6,18 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+  const { pathname } = request.nextUrl;
+  const isPublic = pathname === '/login' || pathname.startsWith('/auth');
 
-  // Not configured yet — let everything through so the app can still boot.
-  if (!supabaseUrl || !supabaseAnonKey) return supabaseResponse;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    if (!isPublic) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      return NextResponse.redirect(url);
+    }
+
+    return supabaseResponse;
+  }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -28,11 +37,6 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-
-  // Public routes
-  const isPublic = pathname === '/login' || pathname.startsWith('/auth');
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

@@ -60,11 +60,6 @@ export default function LoginPage() {
     setConfirmPassword('');
   };
 
-  const handleDemo = () => {
-    window.localStorage.setItem('hhs-demo-mode', '1');
-    router.push('/dashboard');
-  };
-
   const redirectTo = (next: string) => `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -74,7 +69,7 @@ export default function LoginPage() {
     setLoading(true);
 
     if (!isSupabaseConfigured) {
-      setError('Supabase is not configured. Add your keys to .env.local, or continue in demo mode.');
+      setError('Supabase is not configured. Add your project URL and anon key to .env.local before signing in.');
       setLoading(false);
       return;
     }
@@ -101,6 +96,7 @@ export default function LoginPage() {
         return;
       }
       if (data.session) {
+        window.localStorage.removeItem('hhs-demo-mode');
         router.push('/dashboard');
         router.refresh();
       } else {
@@ -116,6 +112,7 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
+      window.localStorage.removeItem('hhs-demo-mode');
       router.push('/dashboard');
       router.refresh();
     }
@@ -153,6 +150,7 @@ export default function LoginPage() {
       } else {
         setMessage('Password updated. You can continue to your dashboard.');
         setTimeout(() => {
+          window.localStorage.removeItem('hhs-demo-mode');
           router.push('/dashboard');
           router.refresh();
         }, 700);
@@ -180,7 +178,7 @@ export default function LoginPage() {
             </p>
             <p className="mt-1">
               Add <code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
-              <code className="font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to <code className="font-mono">.env.local</code>.
+              <code className="font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to <code className="font-mono">.env.local</code> to enable real sign in.
             </p>
           </div>
         )}
@@ -304,15 +302,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {!isSupabaseConfigured && (
-            <button
-              onClick={handleDemo}
-              className="mt-3 w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
-            >
-              <Database className="w-4 h-4" />
-              Continue in demo mode
-            </button>
-          )}
         </div>
       </div>
     </div>

@@ -106,7 +106,7 @@ export default function DashboardPage() {
                 </span>
                 <span className={cn('font-medium flex items-center gap-1.5', isSupabaseConfigured ? 'text-green-600' : 'text-amber-600')}>
                   <Wifi className="w-3.5 h-3.5" />
-                  {isSupabaseConfigured ? 'Online' : 'Demo'}
+                  {isSupabaseConfigured ? 'Online' : 'Setup required'}
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm">

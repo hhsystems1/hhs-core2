@@ -142,7 +142,10 @@ export const useOrgStore = create<OrgState>((set, get) => ({
     if (isSupabaseConfigured) {
       await createClient().auth.signOut();
     }
-    if (typeof window !== 'undefined') window.localStorage.removeItem('hhs-active-org');
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('hhs-active-org');
+      window.localStorage.removeItem('hhs-demo-mode');
+    }
     set({ userId: null, profile: null, orgs: [], activeOrgId: null, booted: true });
   },
 }));

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
+  MessageSquare,
   Users,
   CheckSquare,
   Calendar,
@@ -16,7 +17,6 @@ import {
   Bell,
   ChevronDown,
   AlertTriangle,
-  ArrowRight,
   Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -28,6 +28,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/client';
 
 const NAVIGATION = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Chat', href: '/chat', icon: MessageSquare },
   { name: 'CRM', href: '/crm', icon: Users },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Calendar', href: '/calendar', icon: Calendar },
@@ -36,7 +37,7 @@ const NAVIGATION = [
 ];
 
 const PRIMARY_TABS = NAVIGATION.filter((n) =>
-  ['/dashboard', '/crm', '/tasks', '/calendar', '/mission-map'].includes(n.href)
+  ['/dashboard', '/chat', '/crm', '/tasks', '/mission-map'].includes(n.href)
 );
 
 function GlobalSearch() {
@@ -293,7 +294,7 @@ function ProfileMenu({ panelClassName }: { panelClassName?: string }) {
   );
 }
 
-function SetupSplash({ onEnable }: { onEnable: () => void }) {
+function SetupSplash() {
   return (
     <div className="flex h-[100dvh] items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-sm p-8 text-center">
@@ -302,25 +303,18 @@ function SetupSplash({ onEnable }: { onEnable: () => void }) {
         </div>
         <h1 className="text-xl font-bold text-slate-900">HHS Core 2</h1>
         <p className="text-sm text-slate-500 mt-2">
-          Add your Supabase credentials to <code className="text-blue-600 font-mono">.env.local</code> to unlock the
-          full experience.
+          Add your Supabase credentials to <code className="text-blue-600 font-mono">.env.local</code>, then restart
+          the dev server to enable real authentication.
         </p>
         <code className="block w-full bg-slate-900 text-slate-100 text-xs rounded-xl px-3 py-2 mt-4 text-left font-mono">
           NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
           <br />
           NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
         </code>
-        <button
-          onClick={onEnable}
-          className="mt-5 w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
-        >
+        <div className="mt-5 w-full flex items-center justify-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-medium">
           <Database className="w-4 h-4" />
-          Continue in demo mode
-          <ArrowRight className="w-4 h-4" />
-        </button>
-        <p className="text-xs text-slate-400 mt-3">
-          Demo mode uses local sample data so you can browse the UI now.
-        </p>
+          Authentication setup required
+        </div>
       </div>
     </div>
   );
@@ -343,25 +337,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { authUserId } = useAppData();
   const { profile } = useOrgStore();
-  const [demoMode, setDemoMode] = useState(
-    () => typeof window !== 'undefined' && window.localStorage.getItem('hhs-demo-mode') === '1'
-  );
-
-  const enableDemo = () => {
-    window.localStorage.setItem('hhs-demo-mode', '1');
-    setDemoMode(true);
-  };
 
   // Session handling
   const isPublicRoute = pathname === '/login';
 
   if (isPublicRoute) return <>{children}</>;
 
-  const authed =
-    (isSupabaseConfigured && Boolean(authUserId)) || (!isSupabaseConfigured && demoMode);
+  const authed = isSupabaseConfigured && Boolean(authUserId);
 
   if (!authed) {
-    if (!isSupabaseConfigured) return <SetupSplash onEnable={enableDemo} />;
+    if (!isSupabaseConfigured) return <SetupSplash />;
     return <LoadingSplash />;
   }
 

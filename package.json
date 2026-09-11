@@ -4,9 +4,20 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:host": "next dev -H 0.0.0.0",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "start:host": "next start -H 0.0.0.0",
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm run build",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:reset": "supabase db reset",
+    "ollama:serve": "ollama serve",
+    "ollama:pull": "ollama pull llama3.1",
+    "ollama:signin": "ollama signin",
+    "mission:runner": "node scripts/mission-runner.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -99,7 +99,8 @@ export default function LoginPage() {
     setConfirmPassword('');
   };
 
-  const redirectTo = (next: string) => `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+  const callbackUrl = (next: string) => `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+  const passwordResetUrl = () => `${window.location.origin}/auth/reset`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,7 +137,7 @@ export default function LoginPage() {
         password,
         options: {
           data: { full_name: name.trim() },
-          emailRedirectTo: redirectTo('/dashboard'),
+          emailRedirectTo: callbackUrl('/dashboard'),
         },
       });
       if (error) {
@@ -171,7 +172,7 @@ export default function LoginPage() {
 
     if (mode === 'forgot') {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectTo('/login?mode=reset'),
+        redirectTo: passwordResetUrl(),
       });
       if (error) {
         setError(error.message);

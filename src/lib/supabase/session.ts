@@ -7,7 +7,9 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
   const { pathname } = request.nextUrl;
-  const isPasswordReset = pathname === '/login' && request.nextUrl.searchParams.get('mode') === 'reset';
+  const isPasswordReset =
+    pathname === '/auth/reset' ||
+    (pathname === '/login' && request.nextUrl.searchParams.get('mode') === 'reset');
   const isPublic = pathname === '/login' || pathname.startsWith('/auth');
 
   if (!supabaseUrl || !supabaseAnonKey) {

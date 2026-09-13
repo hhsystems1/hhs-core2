@@ -1,10 +1,37 @@
 'use client';
 
 import { useEffect } from 'react';
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 
 export default function AuthResetPage() {
   useEffect(() => {
-    window.location.replace(`/login?mode=reset${window.location.hash}`);
+    const handleResetLink = async () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const errorDescription =
+        searchParams.get('error_description') || hashParams.get('error_description');
+
+      if (errorDescription) {
+        window.location.replace(`/login?mode=forgot&error=${encodeURIComponent(errorDescription)}`);
+        return;
+      }
+
+      const code = searchParams.get('code');
+      if (code && isSupabaseConfigured) {
+        const { error } = await createClient().auth.exchangeCodeForSession(code);
+        if (error) {
+          window.location.replace(`/login?mode=forgot&error=${encodeURIComponent(error.message)}`);
+          return;
+        }
+
+        window.location.replace('/login?mode=reset');
+        return;
+      }
+
+      window.location.replace(`/login?mode=reset${window.location.hash}`);
+    };
+
+    void handleResetLink();
   }, []);
 
   return (

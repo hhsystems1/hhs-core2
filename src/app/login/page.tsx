@@ -18,19 +18,27 @@ export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(() => {
     if (typeof window === 'undefined') return 'signin';
-    return new URLSearchParams(window.location.search).get('mode') === 'reset' ? 'reset' : 'signin';
+    const requestedMode = new URLSearchParams(window.location.search).get('mode');
+    return requestedMode === 'reset' || requestedMode === 'forgot' ? requestedMode : 'signin';
   });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('error');
+  });
   const [loading, setLoading] = useState(false);
   const [recoveryReady, setRecoveryReady] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    if (params.get('error')) {
+      window.history.replaceState(null, '', params.get('mode') === 'forgot' ? '/login?mode=forgot' : '/login');
+    }
+
     if (!isSupabaseConfigured) return;
 
     const supabase = createClient();

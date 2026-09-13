@@ -437,7 +437,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* ---------- Mobile bottom tab bar ---------- */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 flex items-stretch justify-around"
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-[2147483647] bg-white border-t border-slate-200 flex items-stretch justify-around"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {PRIMARY_TABS.map((item) => {
           const Icon = item.icon;

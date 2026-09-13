@@ -24,5 +24,6 @@ create unique index if not exists agent_provider_configs_one_default_idx
 
 alter table public.agent_provider_configs enable row level security;
 
+drop policy if exists "agent_provider_configs_all" on public.agent_provider_configs;
 create policy "agent_provider_configs_all" on public.agent_provider_configs
   for all using (user_in_org(org_id)) with check (user_in_org(org_id));

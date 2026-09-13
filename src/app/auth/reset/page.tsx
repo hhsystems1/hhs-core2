@@ -18,7 +18,7 @@ export default function AuthResetPage() {
 
       const code = searchParams.get('code');
       if (code && isSupabaseConfigured) {
-        const { error } = await createClient().auth.exchangeCodeForSession(code);
+        const { error } = await createClient({ auth: { detectSessionInUrl: false } }).auth.exchangeCodeForSession(code);
         if (error) {
           window.location.replace(`/login?mode=forgot&error=${encodeURIComponent(error.message)}`);
           return;

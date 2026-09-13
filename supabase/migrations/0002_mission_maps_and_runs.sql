@@ -87,12 +87,15 @@ alter table public.mission_maps enable row level security;
 alter table public.mission_runs enable row level security;
 alter table public.mission_node_runs enable row level security;
 
+drop policy if exists "mission_maps_all" on public.mission_maps;
 create policy "mission_maps_all" on public.mission_maps
   for all using (user_in_org(org_id)) with check (user_in_org(org_id));
 
+drop policy if exists "mission_runs_all" on public.mission_runs;
 create policy "mission_runs_all" on public.mission_runs
   for all using (user_in_org(org_id)) with check (user_in_org(org_id));
 
+drop policy if exists "mission_node_runs_all" on public.mission_node_runs;
 create policy "mission_node_runs_all" on public.mission_node_runs
   for all using (user_in_org(org_id)) with check (user_in_org(org_id));
 

@@ -7,6 +7,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
   const { pathname } = request.nextUrl;
+  const isPasswordReset = pathname === '/login' && request.nextUrl.searchParams.get('mode') === 'reset';
   const isPublic = pathname === '/login' || pathname.startsWith('/auth');
 
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -44,7 +45,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isPublic) {
+  if (user && isPublic && !isPasswordReset) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);

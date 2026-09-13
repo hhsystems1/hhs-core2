@@ -7,9 +7,12 @@ import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
 type Mode = 'signin' | 'signup' | 'forgot' | 'reset';
+type Notice = { tone: 'success' | 'info'; text: string };
 
 const inputClass =
   'w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm';
+
+const MIN_PASSWORD_LENGTH = 6;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,7 +24,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [recoveryReady, setRecoveryReady] = useState(false);
@@ -31,9 +34,45 @@ export default function LoginPage() {
     if (!isSupabaseConfigured) return;
 
     const supabase = createClient();
-    supabase.auth.getSession().then(({ data }) => {
-      if (params.get('mode') === 'reset' && data.session) setRecoveryReady(true);
-    });
+    const loadSession = async () => {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      const authType = hashParams.get('type');
+
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (error) {
+          setError(error.message);
+          return;
+        }
+
+        window.history.replaceState(null, '', '/login?mode=reset');
+        setMode('reset');
+        setRecoveryReady(true);
+        setNotice({
+          tone: 'info',
+          text:
+            authType === 'invite'
+              ? 'Invite accepted. Create a password to finish setting up your account.'
+              : 'Reset link verified. Choose a new password to continue.',
+        });
+        return;
+      }
+
+      const { data } = await supabase.auth.getSession();
+      if (params.get('mode') === 'reset' && data.session) {
+        setMode('reset');
+        setRecoveryReady(true);
+      }
+    };
+
+    void loadSession();
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -55,7 +94,7 @@ export default function LoginPage() {
   const resetState = (nextMode: Mode) => {
     setMode(nextMode);
     setError(null);
-    setMessage(null);
+    setNotice(null);
     setPassword('');
     setConfirmPassword('');
   };
@@ -65,7 +104,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setMessage(null);
+    setNotice(null);
     setLoading(true);
 
     if (!isSupabaseConfigured) {
@@ -79,6 +118,16 @@ export default function LoginPage() {
     if (mode === 'signup') {
       if (!name.trim()) {
         setError('Full name is required.');
+        setLoading(false);
+        return;
+      }
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+        setLoading(false);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('Passwords do not match.');
         setLoading(false);
         return;
       }
@@ -100,7 +149,10 @@ export default function LoginPage() {
         router.push('/dashboard');
         router.refresh();
       } else {
-        setMessage('Check your email to confirm your account, then sign in.');
+        setNotice({
+          tone: 'success',
+          text: 'Account created. Check your email to confirm your account, then sign in.',
+        });
         setMode('signin');
       }
     }
@@ -124,7 +176,10 @@ export default function LoginPage() {
       if (error) {
         setError(error.message);
       } else {
-        setMessage('Password reset email sent. Open the link in that email to choose a new password.');
+        setNotice({
+          tone: 'success',
+          text: 'Password reset email sent. Open the link in that email to choose a new password.',
+        });
       }
     }
 
@@ -134,8 +189,8 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      if (password.length < 6) {
-        setError('Password must be at least 6 characters.');
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
         setLoading(false);
         return;
       }
@@ -148,7 +203,10 @@ export default function LoginPage() {
       if (error) {
         setError(error.message);
       } else {
-        setMessage('Password updated. You can continue to your dashboard.');
+        setNotice({
+          tone: 'success',
+          text: 'Password updated. Taking you to your dashboard.',
+        });
         setTimeout(() => {
           window.localStorage.removeItem('hhs-demo-mode');
           router.push('/dashboard');
@@ -273,6 +331,21 @@ export default function LoginPage() {
               </div>
             )}
 
+            {mode === 'signup' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Confirm password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={MIN_PASSWORD_LENGTH}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className={inputClass}
+                />
+              </div>
+            )}
+
             {mode === 'signin' && (
               <button
                 type="button"
@@ -284,7 +357,18 @@ export default function LoginPage() {
             )}
 
             {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>}
-            {message && <p className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-xl px-3 py-2">{message}</p>}
+            {notice && (
+              <p
+                className={cn(
+                  'text-xs border rounded-xl px-3 py-2',
+                  notice.tone === 'success'
+                    ? 'text-green-700 bg-green-50 border-green-100'
+                    : 'text-blue-700 bg-blue-50 border-blue-100'
+                )}
+              >
+                {notice.text}
+              </p>
+            )}
 
             <button
               type="submit"

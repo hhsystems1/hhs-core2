@@ -34,7 +34,14 @@ export const useOrgStore = create<OrgState>((set, get) => ({
     set({ loading: true });
 
     if (!isSupabaseConfigured) {
-      set({ loading: false, booted: true });
+      set({
+        userId: null,
+        profile: null,
+        orgs: [],
+        activeOrgId: null,
+        loading: false,
+        booted: true,
+      });
       return;
     }
 
@@ -44,7 +51,14 @@ export const useOrgStore = create<OrgState>((set, get) => ({
     } = await supabase.auth.getUser();
 
     if (!user) {
-      set({ loading: false, booted: true });
+      set({
+        userId: null,
+        profile: null,
+        orgs: [],
+        activeOrgId: null,
+        loading: false,
+        booted: true,
+      });
       return;
     }
 

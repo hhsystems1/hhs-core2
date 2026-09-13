@@ -339,7 +339,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { profile } = useOrgStore();
 
   // Session handling
-  const isPublicRoute = pathname === '/login';
+  const isPublicRoute = pathname === '/login' || pathname.startsWith('/auth');
 
   if (isPublicRoute) return <>{children}</>;
 

@@ -14,8 +14,17 @@ const inputClass =
 
 const MIN_PASSWORD_LENGTH = 6;
 
+function getSafeNext(search: string) {
+  const next = new URLSearchParams(search).get('next');
+  return next?.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
+}
+
 export default function LoginPage() {
   const router = useRouter();
+  const [nextPath] = useState(() => {
+    if (typeof window === 'undefined') return '/dashboard';
+    return getSafeNext(window.location.search);
+  });
   const [mode, setMode] = useState<Mode>(() => {
     if (typeof window === 'undefined') return 'signin';
     const requestedMode = new URLSearchParams(window.location.search).get('mode');
@@ -35,8 +44,14 @@ export default function LoginPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const safeNext = getSafeNext(window.location.search);
+
     if (params.get('error')) {
-      window.history.replaceState(null, '', params.get('mode') === 'forgot' ? '/login?mode=forgot' : '/login');
+      const cleanParams = new URLSearchParams();
+      if (params.get('mode') === 'forgot') cleanParams.set('mode', 'forgot');
+      if (params.get('next')) cleanParams.set('next', safeNext);
+      const cleanSearch = cleanParams.toString();
+      window.history.replaceState(null, '', `/login${cleanSearch ? `?${cleanSearch}` : ''}`);
     }
 
     if (!isSupabaseConfigured) return;
@@ -145,7 +160,7 @@ export default function LoginPage() {
         password,
         options: {
           data: { full_name: name.trim() },
-          emailRedirectTo: callbackUrl('/dashboard'),
+          emailRedirectTo: callbackUrl(nextPath),
         },
       });
       if (error) {
@@ -155,7 +170,7 @@ export default function LoginPage() {
       }
       if (data.session) {
         window.localStorage.removeItem('hhs-demo-mode');
-        router.push('/dashboard');
+        router.push(nextPath);
         router.refresh();
       } else {
         setNotice({
@@ -174,7 +189,7 @@ export default function LoginPage() {
         return;
       }
       window.localStorage.removeItem('hhs-demo-mode');
-      router.push('/dashboard');
+      router.push(nextPath);
       router.refresh();
     }
 
@@ -218,7 +233,7 @@ export default function LoginPage() {
         });
         setTimeout(() => {
           window.localStorage.removeItem('hhs-demo-mode');
-          router.push('/dashboard');
+          router.push(nextPath);
           router.refresh();
         }, 700);
       }

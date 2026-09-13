@@ -5,6 +5,7 @@ import { supabaseAnonKey, supabaseUrl } from './config';
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
   const { pathname } = request.nextUrl;
+  const isApiRoute = pathname.startsWith('/api/');
   const isPasswordReset =
     pathname === '/auth/reset' ||
     (pathname === '/login' && request.nextUrl.searchParams.get('mode') === 'reset');
@@ -12,8 +13,14 @@ export async function updateSession(request: NextRequest) {
 
   if (!supabaseUrl || !supabaseAnonKey) {
     if (!isPublic) {
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Authentication is not configured.' }, { status: 503 });
+      }
+
       const url = request.nextUrl.clone();
       url.pathname = '/login';
+      url.search = '';
+      url.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
       return NextResponse.redirect(url);
     }
 
@@ -40,15 +47,21 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user && !isPublic) {
+    if (isApiRoute) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    url.search = '';
+    url.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(url);
   }
 
   if (user && isPublic && !isPasswordReset) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+    const requestedNext = request.nextUrl.searchParams.get('next');
+    const safeNext = requestedNext?.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : '/dashboard';
+    return NextResponse.redirect(new URL(safeNext, request.nextUrl.origin));
   }
 
   return supabaseResponse;

@@ -12,20 +12,12 @@ import {
   Send,
   Settings2,
   Sparkles,
-  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useOrgStore } from '@/lib/store/orgStore';
+import { useChatStore } from '@/lib/store/chatStore';
 
 type ChatProvider = 'openai' | 'openrouter' | 'ollama-cloud';
-type ChatRole = 'user' | 'assistant';
-
-interface ChatMessage {
-  id: string;
-  role: ChatRole;
-  content: string;
-}
-
 interface ProviderSettings {
   provider: ChatProvider;
   openai: {
@@ -183,18 +175,25 @@ function newId() {
 export default function ChatPage() {
   const [settings, setSettings] = useState<ProviderSettings>(() => loadSettings());
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: newId(),
-      role: 'assistant',
-      content: 'Agent chat is ready. Choose a provider, save your settings, and send the first mission.',
-    },
-  ]);
+  const { threads, activeThreadId, messages, loadedOrgId, loadThreads, selectThread, createThread, addMessage } = useChatStore();
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeOrgId && loadedOrgId !== activeOrgId) void loadThreads(activeOrgId);
+  }, [activeOrgId, loadedOrgId, loadThreads]);
+
+  useEffect(() => {
+    if (activeOrgId && loadedOrgId === activeOrgId && threads.length === 0 && !activeThreadId) {
+      void (async () => {
+        const threadId = await createThread(activeOrgId);
+        if (threadId) await addMessage(activeOrgId, threadId, 'assistant', 'Agent chat is ready. Ask me to manage your workspace.');
+      })();
+    }
+  }, [activeOrgId, activeThreadId, loadedOrgId, threads.length, createThread, addMessage]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -245,15 +244,10 @@ export default function ChatPage() {
     setSaved(false);
   };
 
-  const clearChat = () => {
-    setMessages([
-      {
-        id: newId(),
-        role: 'assistant',
-        content: 'Chat cleared. I am ready for the next thread.',
-      },
-    ]);
-    setError(null);
+  const startNewChat = async () => {
+    if (!activeOrgId) return;
+    const threadId = await createThread(activeOrgId);
+    if (threadId) await addMessage(activeOrgId, threadId, 'assistant', 'New conversation started. How can I help?');
   };
 
   const submit = async (event?: React.FormEvent) => {
@@ -262,8 +256,12 @@ export default function ChatPage() {
     if (!content || busy) return;
 
     setError(null);
+    if (!activeOrgId || !activeThreadId) {
+      setError('Choose or start a conversation first.');
+      return;
+    }
     const nextMessages = [...messages, { id: newId(), role: 'user' as const, content }];
-    setMessages(nextMessages);
+    await addMessage(activeOrgId, activeThreadId, 'user', content);
     setInput('');
     setBusy(true);
 
@@ -287,14 +285,7 @@ export default function ChatPage() {
         throw new Error(data.error ?? 'The provider returned an error.');
       }
 
-      setMessages((current) => [
-        ...current,
-        {
-          id: newId(),
-          role: 'assistant',
-          content: data.content?.trim() || 'The provider returned an empty response.',
-        },
-      ]);
+      await addMessage(activeOrgId, activeThreadId, 'assistant', data.content?.trim() || 'The provider returned an empty response.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to send chat request.');
     } finally {
@@ -304,6 +295,28 @@ export default function ChatPage() {
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-7rem)] max-w-7xl flex-col gap-4 lg:h-[calc(100dvh-8rem)] lg:flex-row">
+      <aside className="hidden w-64 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:flex">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+          <h2 className="text-sm font-bold text-slate-900">Conversations</h2>
+          <button type="button" onClick={startNewChat} className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
+            New chat
+          </button>
+        </div>
+        <div className="flex-1 space-y-1 overflow-y-auto p-2">
+          {threads.map((thread) => (
+            <button
+              key={thread.id}
+              type="button"
+              onClick={() => activeOrgId && void selectThread(activeOrgId, thread.id)}
+              className={cn('w-full rounded-xl px-3 py-2.5 text-left text-sm transition-colors', activeThreadId === thread.id ? 'bg-blue-50 font-semibold text-blue-700' : 'text-slate-600 hover:bg-slate-50')}
+            >
+              <span className="block truncate">{thread.title}</span>
+              <span className="mt-0.5 block text-[10px] font-normal text-slate-400">{new Date(thread.updatedAt).toLocaleDateString()}</span>
+            </button>
+          ))}
+        </div>
+      </aside>
+
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
           <div className="min-w-0">
@@ -315,15 +328,19 @@ export default function ChatPage() {
               {providerMeta.name} · {activeProvider.model}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={clearChat}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            aria-label="Clear chat"
-            title="Clear chat"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <select
+              className="max-w-32 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs text-slate-600 lg:hidden"
+              value={activeThreadId ?? ''}
+              onChange={(event) => activeOrgId && void selectThread(activeOrgId, event.target.value)}
+              aria-label="Select conversation"
+            >
+              {threads.map((thread) => <option key={thread.id} value={thread.id}>{thread.title}</option>)}
+            </select>
+            <button type="button" onClick={startNewChat} className="rounded-lg bg-blue-600 px-2.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 lg:hidden">
+              New
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">

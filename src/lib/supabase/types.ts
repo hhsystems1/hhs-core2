@@ -136,6 +136,25 @@ export interface AgentProviderConfigRow {
   updated_at: string;
 }
 
+export interface ChatThreadRow {
+  id: string;
+  org_id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessageRow {
+  id: string;
+  thread_id: string;
+  org_id: string;
+  user_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+}
+
 export interface KnowledgeDocRow {
   id: string;
   org_id: string;
@@ -162,6 +181,8 @@ export interface Database {
       mission_runs: { Row: MissionRunRow; Insert: Partial<MissionRunRow>; Update: Partial<MissionRunRow> };
       mission_node_runs: { Row: MissionNodeRunRow; Insert: Partial<MissionNodeRunRow>; Update: Partial<MissionNodeRunRow> };
       agent_provider_configs: { Row: AgentProviderConfigRow; Insert: Partial<AgentProviderConfigRow>; Update: Partial<AgentProviderConfigRow> };
+      chat_threads: { Row: ChatThreadRow; Insert: Partial<ChatThreadRow>; Update: Partial<ChatThreadRow> };
+      chat_messages: { Row: ChatMessageRow; Insert: Partial<ChatMessageRow>; Update: Partial<ChatMessageRow> };
       knowledge_docs: { Row: KnowledgeDocRow; Insert: Partial<KnowledgeDocRow>; Update: Partial<KnowledgeDocRow> };
     };
   };

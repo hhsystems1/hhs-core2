@@ -28,18 +28,36 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      const code = searchParams.get('code');
-      if (!code) {
-        redirectToLogin('Missing authentication code. Please sign in again.', next);
-        return;
-      }
-
       if (!isSupabaseConfigured) {
         redirectToLogin('Supabase is not configured. Add your project URL and anon key before signing in.', next);
         return;
       }
 
       const supabase = createClient({ auth: { detectSessionInUrl: false } });
+
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) {
+          redirectToLogin(error.message, next);
+          return;
+        }
+
+        window.localStorage.removeItem('hhs-demo-mode');
+        window.location.replace(next);
+        return;
+      }
+
+      const code = searchParams.get('code');
+      if (!code) {
+        redirectToLogin('Missing authentication code. Please sign in again.', next);
+        return;
+      }
+
       const { error } = await supabase.auth.exchangeCodeForSession(code);
 
       if (error) {

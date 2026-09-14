@@ -155,7 +155,7 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await createClient({ auth: { flowType: 'implicit' } }).auth.signUp({
         email,
         password,
         options: {
@@ -194,7 +194,7 @@ export default function LoginPage() {
     }
 
     if (mode === 'forgot') {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await createClient({ auth: { flowType: 'implicit' } }).auth.resetPasswordForEmail(email, {
         redirectTo: passwordResetUrl(),
       });
       if (error) {

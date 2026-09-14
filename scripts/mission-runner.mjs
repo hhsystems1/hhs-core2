@@ -83,7 +83,7 @@ async function callAgentProvider(config, nodeRun) {
     },
   ];
 
-  if (config.provider === 'ollama-local' || config.provider === 'ollama-cloud') {
+  if (config.provider === 'ollama-cloud') {
     const headers = { 'Content-Type': 'application/json' };
     if (config.provider === 'ollama-cloud') headers.Authorization = `Bearer ${apiKey}`;
     const response = await fetch(ollamaChatUrl(baseUrl), {

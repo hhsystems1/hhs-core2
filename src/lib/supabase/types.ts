@@ -126,7 +126,7 @@ export interface AgentProviderConfigRow {
   id: string;
   org_id: string;
   name: string;
-  provider: 'openai' | 'openrouter' | 'ollama-local' | 'ollama-cloud';
+  provider: 'openai' | 'openrouter' | 'ollama-cloud';
   base_url: string;
   model: string;
   api_key: string | null;

@@ -19,7 +19,6 @@ type AgentProvider = AgentProviderConfigRow['provider'];
 const PROVIDER_DEFAULTS: Record<AgentProvider, { name: string; baseUrl: string; model: string; needsKey: boolean }> = {
   openai: { name: 'ChatGPT / OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', needsKey: true },
   openrouter: { name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini', needsKey: true },
-  'ollama-local': { name: 'Ollama Local', baseUrl: 'http://localhost:11434', model: 'llama3.1', needsKey: false },
   'ollama-cloud': { name: 'Ollama Cloud', baseUrl: 'https://ollama.com/api', model: 'gpt-oss:120b-cloud', needsKey: true },
 };
 
@@ -105,11 +104,11 @@ export default function SettingsPage() {
       const supabase = createClient();
       const { data } = await supabase
         .from('agent_provider_configs')
-        .select('*')
+        .select('id, org_id, name, provider, base_url, model, system_prompt, is_default, created_at, updated_at')
         .eq('org_id', activeOrgId)
         .eq('is_default', true)
         .maybeSingle();
-      if (active) setAgentConfig(data ?? null);
+      if (active) setAgentConfig(data ? { ...data, api_key: null } : null);
     }
     run();
     return () => {
@@ -308,7 +307,7 @@ function AgentProviderSettings({
   const [provider, setProvider] = useState<AgentProvider>(config?.provider ?? 'openai');
   const [model, setModel] = useState(config?.model ?? PROVIDER_DEFAULTS.openai.model);
   const [baseUrl, setBaseUrl] = useState(config?.base_url ?? PROVIDER_DEFAULTS.openai.baseUrl);
-  const [apiKey, setApiKey] = useState(config?.api_key ?? '');
+  const [apiKey, setApiKey] = useState('');
   const [systemPrompt, setSystemPrompt] = useState(config?.system_prompt ?? DEFAULT_SYSTEM_PROMPT);
   const [busy, setBusy] = useState(false);
 
@@ -329,7 +328,7 @@ function AgentProviderSettings({
     }
 
     const defaults = PROVIDER_DEFAULTS[provider];
-    if (defaults.needsKey && !apiKey.trim()) {
+    if (defaults.needsKey && !apiKey.trim() && !config) {
       onMessage('This provider needs an API key.');
       return;
     }
@@ -342,23 +341,29 @@ function AgentProviderSettings({
       provider,
       base_url: baseUrl.trim() || defaults.baseUrl,
       model: model.trim() || defaults.model,
-      api_key: defaults.needsKey ? apiKey.trim() : null,
       system_prompt: systemPrompt.trim() || DEFAULT_SYSTEM_PROMPT,
       is_default: true,
     };
 
     if (config) {
+      const updatePayload = apiKey.trim()
+        ? { ...payload, api_key: apiKey.trim() }
+        : payload;
       const { data, error } = await supabase
         .from('agent_provider_configs')
-        .update(payload)
+        .update(updatePayload)
         .eq('org_id', activeOrgId)
         .eq('id', config.id)
-        .select('*')
+        .select('id, org_id, name, provider, base_url, model, system_prompt, is_default, created_at, updated_at')
         .single();
       onMessage(error ? error.message : 'Agent provider saved.');
-      if (data) onSaved(data);
+      if (data) onSaved({ ...data, api_key: null });
     } else {
-      const { data, error } = await supabase.from('agent_provider_configs').insert(payload).select('*').single();
+      const { data, error } = await supabase
+        .from('agent_provider_configs')
+        .insert({ ...payload, api_key: defaults.needsKey ? apiKey.trim() : null })
+        .select('id, org_id, name, provider, base_url, model, api_key, system_prompt, is_default, created_at, updated_at')
+        .single();
       onMessage(error ? error.message : 'Agent provider saved.');
       if (data) onSaved(data);
     }
@@ -394,12 +399,26 @@ function AgentProviderSettings({
           <input className={inputClass} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
         </div>
         {PROVIDER_DEFAULTS[provider].needsKey && (
-          <div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-1.5">
-              <KeyRound className="w-3.5 h-3.5" /> API key
-            </label>
-            <input className={inputClass} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-          </div>
+          <details className="rounded-xl border border-slate-200 bg-slate-50">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-3 text-xs font-semibold text-slate-700">
+              <KeyRound className="w-3.5 h-3.5 text-slate-500" />
+              API key
+              <span className="ml-auto text-[11px] font-normal text-slate-400">
+                {config ? 'managed securely' : 'not configured'}
+              </span>
+            </summary>
+            <div className="border-t border-slate-200 p-3">
+              <input
+                className={inputClass}
+                type="password"
+                autoComplete="new-password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={config ? 'Enter a new key to replace it' : 'Paste provider API key'}
+              />
+              <p className="mt-1.5 text-[11px] text-slate-400">Keys are never displayed after they are saved.</p>
+            </div>
+          </details>
         )}
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1.5">Runner system prompt</label>

@@ -15,8 +15,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useOrgStore } from '@/lib/store/orgStore';
 
-type ChatProvider = 'openai' | 'openrouter' | 'ollama-local' | 'ollama-cloud';
+type ChatProvider = 'openai' | 'openrouter' | 'ollama-cloud';
 type ChatRole = 'user' | 'assistant';
 
 interface ChatMessage {
@@ -37,10 +38,6 @@ interface ProviderSettings {
     baseUrl: string;
     model: string;
   };
-  ollamaLocal: {
-    baseUrl: string;
-    model: string;
-  };
   ollamaCloud: {
     apiKey: string;
     baseUrl: string;
@@ -52,7 +49,6 @@ interface ProviderSettings {
 type ActiveProviderSettings =
   | ProviderSettings['openai']
   | ProviderSettings['openrouter']
-  | ProviderSettings['ollamaLocal']
   | ProviderSettings['ollamaCloud'];
 type KeyedProviderSettings =
   | ProviderSettings['openai']
@@ -78,10 +74,6 @@ const DEFAULT_SETTINGS: ProviderSettings = {
     apiKey: '',
     baseUrl: 'https://openrouter.ai/api/v1',
     model: 'openai/gpt-4o-mini',
-  },
-  ollamaLocal: {
-    baseUrl: 'http://localhost:11434',
-    model: 'llama3.1',
   },
   ollamaCloud: {
     apiKey: '',
@@ -114,13 +106,6 @@ const PROVIDERS: Array<{
     models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'google/gemini-flash-1.5', 'meta-llama/llama-3.1-70b-instruct'],
   },
   {
-    id: 'ollama-local',
-    name: 'Ollama Local',
-    label: 'Local',
-    description: 'Call the Ollama daemon running on this machine.',
-    models: ['llama3.1', 'llama3.2', 'mistral', 'qwen2.5-coder'],
-  },
-  {
     id: 'ollama-cloud',
     name: 'Ollama Cloud',
     label: 'Cloud',
@@ -130,7 +115,7 @@ const PROVIDERS: Array<{
 ];
 
 function isChatProvider(value: unknown): value is ChatProvider {
-  return value === 'openai' || value === 'openrouter' || value === 'ollama-local' || value === 'ollama-cloud';
+  return value === 'openai' || value === 'openrouter' || value === 'ollama-cloud';
 }
 
 const inputClass =
@@ -139,26 +124,30 @@ const inputClass =
 function mergeSettings(value: unknown): ProviderSettings {
   if (!value || typeof value !== 'object') return DEFAULT_SETTINGS;
   const parsed = value as Partial<ProviderSettings>;
-  const legacy = parsed as Partial<ProviderSettings> & {
-    ollama?: ProviderSettings['ollamaLocal'];
-  };
   const savedProvider = (value as { provider?: unknown }).provider;
-  const provider = savedProvider === 'ollama' ? 'ollama-local' : isChatProvider(savedProvider) ? savedProvider : DEFAULT_SETTINGS.provider;
+  const provider = savedProvider === 'ollama' ? 'ollama-cloud' : isChatProvider(savedProvider) ? savedProvider : DEFAULT_SETTINGS.provider;
 
   return {
     provider,
     openai: { ...DEFAULT_SETTINGS.openai, ...(parsed.openai ?? {}) },
     openrouter: { ...DEFAULT_SETTINGS.openrouter, ...(parsed.openrouter ?? {}) },
-    ollamaLocal: { ...DEFAULT_SETTINGS.ollamaLocal, ...(parsed.ollamaLocal ?? legacy.ollama ?? {}) },
     ollamaCloud: { ...DEFAULT_SETTINGS.ollamaCloud, ...(parsed.ollamaCloud ?? {}) },
     systemPrompt: parsed.systemPrompt ?? DEFAULT_SETTINGS.systemPrompt,
   };
 }
 
 function getProviderSettings(settings: ProviderSettings): ActiveProviderSettings {
-  if (settings.provider === 'ollama-local') return settings.ollamaLocal;
   if (settings.provider === 'ollama-cloud') return settings.ollamaCloud;
   return settings[settings.provider];
+}
+
+function getProviderSettingsById(settings: ProviderSettings, provider: ChatProvider): ActiveProviderSettings {
+  if (provider === 'ollama-cloud') return settings.ollamaCloud;
+  return settings[provider];
+}
+
+function providerSettingsKey(provider: ChatProvider) {
+  return provider === 'ollama-cloud' ? 'ollamaCloud' : provider;
 }
 
 function hasApiKeySettings(provider: ActiveProviderSettings): provider is KeyedProviderSettings {
@@ -168,10 +157,21 @@ function hasApiKeySettings(provider: ActiveProviderSettings): provider is KeyedP
 function loadSettings() {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
-    return mergeSettings(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null'));
+    const settings = mergeSettings(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null'));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(getPersistedSettings(settings)));
+    return getPersistedSettings(settings);
   } catch {
     return DEFAULT_SETTINGS;
   }
+}
+
+function getPersistedSettings(settings: ProviderSettings) {
+  return {
+    ...settings,
+    openai: { ...settings.openai, apiKey: '' },
+    openrouter: { ...settings.openrouter, apiKey: '' },
+    ollamaCloud: { ...settings.ollamaCloud, apiKey: '' },
+  };
 }
 
 function newId() {
@@ -182,6 +182,7 @@ function newId() {
 
 export default function ChatPage() {
   const [settings, setSettings] = useState<ProviderSettings>(() => loadSettings());
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: newId(),
@@ -205,7 +206,7 @@ export default function ChatPage() {
   );
 
   const activeProvider = getProviderSettings(settings);
-  const hasKey = settings.provider === 'ollama-local' || Boolean(hasApiKeySettings(activeProvider) && activeProvider.apiKey.trim());
+  const hasKey = Boolean(hasApiKeySettings(activeProvider) && activeProvider.apiKey.trim());
 
   const updateProvider = (provider: ChatProvider) => {
     setSettings((current) => ({ ...current, provider }));
@@ -215,7 +216,7 @@ export default function ChatPage() {
   const updateActiveProvider = (updates: ActiveProviderUpdates) => {
     setSettings((current) => ({
       ...current,
-      [current.provider === 'ollama-local' ? 'ollamaLocal' : current.provider === 'ollama-cloud' ? 'ollamaCloud' : current.provider]: {
+      [providerSettingsKey(current.provider)]: {
         ...getProviderSettings(current),
         ...updates,
       },
@@ -223,8 +224,17 @@ export default function ChatPage() {
     setSaved(false);
   };
 
+  const updateProviderApiKey = (provider: ChatProvider, apiKey: string) => {
+    const key = providerSettingsKey(provider);
+    setSettings((current) => ({
+      ...current,
+      [key]: { ...getProviderSettingsById(current, provider), apiKey },
+    }));
+    setSaved(false);
+  };
+
   const saveSettings = () => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(getPersistedSettings(settings)));
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };
@@ -263,6 +273,7 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           provider: settings.provider,
+          orgId: activeOrgId,
           apiKey: hasApiKeySettings(activeProvider) ? activeProvider.apiKey : '',
           baseUrl: activeProvider.baseUrl,
           model: activeProvider.model,
@@ -391,50 +402,46 @@ export default function ChatPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {PROVIDERS.map((provider) => (
-            <button
-              key={provider.id}
-              type="button"
-              onClick={() => updateProvider(provider.id)}
-              className={cn(
-                'rounded-xl border px-2 py-2 text-left transition-colors',
-                settings.provider === provider.id
-                  ? 'border-blue-600 bg-blue-50 text-blue-700'
-                  : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-              )}
-            >
-              <span className="block truncate text-xs font-bold">{provider.name}</span>
-              <span className="block truncate text-[10px] text-current opacity-70">{provider.label}</span>
-            </button>
-          ))}
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-600">Active provider</label>
+          <select className={inputClass} value={settings.provider} onChange={(event) => updateProvider(event.target.value as ChatProvider)}>
+            {PROVIDERS.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.name} · {provider.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
           <p className="font-medium text-slate-700">{providerMeta.description}</p>
         </div>
 
-        {hasApiKeySettings(activeProvider) && (
-          <div>
-            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-              <KeyRound className="h-3.5 w-3.5" />
-              API key
-            </label>
-            <input
-              className={inputClass}
-              type="password"
-              value={activeProvider.apiKey}
-              onChange={(event) => updateActiveProvider({ apiKey: event.target.value })}
-              placeholder={
-                settings.provider === 'openrouter'
-                  ? 'sk-or-...'
-                  : settings.provider === 'ollama-cloud'
-                    ? 'ollama...'
-                    : 'sk-...'
-              }
-            />
+        <details className="rounded-xl border border-slate-200 bg-slate-50" open={hasApiKeySettings(activeProvider)}>
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-xs font-semibold text-slate-700">
+            <KeyRound className="h-3.5 w-3.5 text-slate-500" />
+            Provider API keys
+            <span className="ml-auto text-[11px] font-normal text-slate-400">kept in memory only</span>
+          </summary>
+          <div className="space-y-3 border-t border-slate-200 px-3 py-3">
+            {PROVIDERS.map((provider) => {
+              const providerSettings = getProviderSettingsById(settings, provider.id) as KeyedProviderSettings;
+              return (
+                <div key={provider.id}>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">{provider.name}</label>
+                  <input
+                    className={inputClass}
+                    type="password"
+                    autoComplete="off"
+                    value={providerSettings.apiKey}
+                    onChange={(event) => updateProviderApiKey(provider.id, event.target.value)}
+                    placeholder={provider.id === 'openrouter' ? 'sk-or-...' : provider.id === 'ollama-cloud' ? 'ollama...' : 'sk-...'}
+                  />
+                </div>
+              );
+            })}
           </div>
-        )}
+        </details>
 
         <div>
           <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-600">

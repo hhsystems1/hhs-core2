@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -367,7 +368,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (
-              <a
+              <Link
                 key={item.name}
                 href={item.href}
                 className={cn(
@@ -377,18 +378,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <Icon className={cn('w-5 h-5', isActive ? 'text-white' : 'text-slate-400 group-hover:text-white')} />
                 <span className="text-sm font-medium">{item.name}</span>
-              </a>
+              </Link>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-800 flex items-center justify-between">
-          <div className="min-w-0 w-[calc(100%-48px)]">
-            <p className="text-xs font-medium text-slate-400 truncate">{profile?.full_name || 'Operator'}</p>
-            <p className="text-[11px] text-slate-500 truncate">{profile?.email}</p>
-          </div>
-          <ProfileMenu />
-        </div>
       </aside>
 
       {/* ---------- Main column ---------- */}
@@ -443,7 +437,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           const Icon = item.icon;
           const isActive = pathname === item.href;
           return (
-            <a
+            <Link
               key={item.name}
               href={item.href}
               className={cn(
@@ -453,7 +447,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Icon className="w-5 h-5" />
               {item.name.split(' ')[0]}
-            </a>
+            </Link>
           );
         })}
       </nav>

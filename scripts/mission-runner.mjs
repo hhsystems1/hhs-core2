@@ -49,7 +49,12 @@ async function defaultProviderConfig(orgId) {
   const rows = await request(
     `/agent_provider_configs?org_id=eq.${orgId}&is_default=eq.true&select=*&limit=1`
   );
-  return rows?.[0] ?? null;
+  const config = rows?.[0] ?? null;
+  if (!config) return null;
+  const secrets = await request(
+    `/agent_provider_secrets?config_id=eq.${config.id}&org_id=eq.${orgId}&select=api_key&limit=1`
+  );
+  return { ...config, api_key: secrets?.[0]?.api_key ?? null };
 }
 
 async function readProviderError(response) {
@@ -69,7 +74,8 @@ async function callAgentProvider(config, nodeRun) {
   const instructions = run?.input?.instructions || nodeRun.input?.instructions || '';
   const model = nodeConfig.model || config.model;
   const baseUrl = cleanBaseUrl(nodeConfig.baseUrl || config.base_url);
-  const apiKey = nodeConfig.apiKey || config.api_key;
+  const apiKey = config.api_key;
+  if (!apiKey) throw new Error('No provider API key is configured for this workspace.');
   const messages = [
     { role: 'system', content: String(systemPrompt) },
     {

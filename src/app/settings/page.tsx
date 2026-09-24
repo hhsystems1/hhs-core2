@@ -108,7 +108,7 @@ export default function SettingsPage() {
         .eq('org_id', activeOrgId)
         .eq('is_default', true)
         .maybeSingle();
-      if (active) setAgentConfig(data ? { ...data, api_key: null } : null);
+      if (active) setAgentConfig(data ?? null);
     }
     run();
     return () => {
@@ -136,25 +136,21 @@ export default function SettingsPage() {
       return;
     }
     const supabase = createClient();
-    const { data } = await supabase.from('profiles').select('id, email').eq('email', email).maybeSingle();
-    if (data) {
-      const { error } = await supabase
-        .from('org_members')
-        .insert({ org_id: activeOrgId!, user_id: data.id, role: 'member' });
-      setInviteMsg(
-        error
-          ? error.message.includes('duplicate key')
-            ? 'That user is already a member.'
-            : error.message
-          : `Added ${email} to the workspace.`
-      );
-      if (!error) {
-        setInviteEmail('');
-        setMembers([]);
-        setActiveOrgIdBump((n) => n + 1);
-      }
-    } else {
-      setInviteMsg(`No account found for ${email}. Invite them to the app first, then add them here.`);
+    const { error } = await supabase.rpc('add_org_member_by_email', {
+      target_org_id: activeOrgId!,
+      target_email: email,
+    });
+    setInviteMsg(
+      error
+        ? error.message.includes('already a member') || error.message.includes('duplicate key')
+          ? 'That user is already a member.'
+          : error.message
+        : `Added ${email} to the workspace.`
+    );
+    if (!error) {
+      setInviteEmail('');
+      setMembers([]);
+      setActiveOrgIdBump((n) => n + 1);
     }
   };
 
@@ -334,40 +330,23 @@ function AgentProviderSettings({
     }
 
     setBusy(true);
-    const supabase = createClient();
-    const payload = {
-      org_id: activeOrgId,
-      name: defaults.name,
-      provider,
-      base_url: baseUrl.trim() || defaults.baseUrl,
-      model: model.trim() || defaults.model,
-      system_prompt: systemPrompt.trim() || DEFAULT_SYSTEM_PROMPT,
-      is_default: true,
-    };
-
-    if (config) {
-      const updatePayload = apiKey.trim()
-        ? { ...payload, api_key: apiKey.trim() }
-        : payload;
-      const { data, error } = await supabase
-        .from('agent_provider_configs')
-        .update(updatePayload)
-        .eq('org_id', activeOrgId)
-        .eq('id', config.id)
-        .select('id, org_id, name, provider, base_url, model, system_prompt, is_default, created_at, updated_at')
-        .single();
-      onMessage(error ? error.message : 'Agent provider saved.');
-      if (data) onSaved({ ...data, api_key: null });
-    } else {
-      const { data, error } = await supabase
-        .from('agent_provider_configs')
-        .insert({ ...payload, api_key: defaults.needsKey ? apiKey.trim() : null })
-        .select('id, org_id, name, provider, base_url, model, api_key, system_prompt, is_default, created_at, updated_at')
-        .single();
-      onMessage(error ? error.message : 'Agent provider saved.');
-      if (data) onSaved(data);
-    }
-
+    const response = await fetch('/api/settings/provider', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orgId: activeOrgId,
+        configId: config?.id ?? null,
+        name: defaults.name,
+        provider,
+        baseUrl: baseUrl.trim() || defaults.baseUrl,
+        model: model.trim() || defaults.model,
+        systemPrompt: systemPrompt.trim() || DEFAULT_SYSTEM_PROMPT,
+        ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+      }),
+    });
+    const result = (await response.json()) as { config?: AgentProviderConfigRow; error?: string };
+    onMessage(response.ok ? 'Agent provider saved.' : result.error ?? 'Unable to save agent provider.');
+    if (response.ok && result.config) onSaved(result.config);
     setBusy(false);
   };
 
